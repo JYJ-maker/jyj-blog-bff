@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nj.mapper.UserMapper">
+
+    <sql id="base_sql">user_id,full_name,user_name,password,email_address,create_time,role_code</sql>
+
+    <insert id="register" parameterType="com.nj.pojo.User">
+       INSERT INTO user(
+            <include refid="base_sql"></include>
+       ) VALUE (#{userId},#{fullName},#{userName},#{password},#{emailAddress},#{createTime},#{roleCode})
+    </insert>
+
+    <select id="selectOneByUserName" parameterType="string" resultType="com.nj.pojo.User">
+        SELECT <include refid="base_sql"></include> FROM user
+            <where>
+              BINARY user_name=#{userName}
+            </where>
+    </select>
+
+    <select id="getAllUser" resultType="com.nj.pojo.User">
+        SELECT
+        u.user_id,u.full_name,u.user_name,u.email_address,u.create_time,u.role_code,
+        r.role_name
+        FROM user u LEFT JOIN role r ON u.role_code=r.role_code
+    </select>
+</mapper>

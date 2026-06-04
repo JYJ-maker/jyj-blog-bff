@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: jyj-blog-bff
+  cloud:
+    bootstrap:
+      enabled: true #springboot2.4.x后使用bootstrap.yaml/yml文件需要该配置
+    nacos:
+      discovery:
+        server-addr: blog.sys.com:8848 #nacos服务地址
+        namespace: f9dbaecd-2b4b-4c21-93f7-c825fc4707cb #nacos配置命名空间ID
+      config:
+        server-addr: blog.sys.com:8848 #nacos服务地址
+        namespace: f9dbaecd-2b4b-4c21-93f7-c825fc4707cb #nacos配置命名空间ID
+        group: DEFAULT_GROUP #nacos配置分组
+        prefix: jyj-blog-bff
+        file-extension: yml #配置文件类型
+        enabled: true #nacos配置预加载
+        username: nacos
+        password: nacos
