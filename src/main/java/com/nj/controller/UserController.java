@@ -14,6 +14,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.ObjectUtils;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.Map;
@@ -25,7 +26,7 @@ import java.util.Map;
  * </p>
  *
  * @author jiayj
- * @version 1.0
+ * @version 2.0
  * @date 2023/12/28
  */
 @Slf4j
@@ -71,12 +72,19 @@ public class UserController {
     /**
      * 用户登出
      *
-     * @param request HTTP请求对象，用于读取Cookie中的token
+     * @param request  HTTP请求对象，用于读取Cookie中的token
+     * @param response HTTP响应对象，用于清除Cookie
      * @return 登出结果
      */
     @PostMapping("logout")
-    public Result logout(HttpServletRequest request) {
-        return userService.logout(request);
+    public Result logout(HttpServletRequest request, HttpServletResponse response) {
+        Result result = userService.logout(request);
+        Cookie cookie = new Cookie("token", null);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+        return result;
     }
 
     /**

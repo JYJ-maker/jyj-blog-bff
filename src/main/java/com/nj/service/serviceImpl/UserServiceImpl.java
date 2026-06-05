@@ -8,11 +8,14 @@ import com.nj.pojo.res.Result;
 import com.nj.service.UserService;
 import com.nj.utils.PasswordUtil;
 import com.nj.utils.TokenUtil;
+import com.nj.utils.ValidateUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.annotation.Resource;
 import javax.servlet.http.Cookie;
@@ -31,12 +34,18 @@ import java.util.UUID;
  * </p>
  *
  * @author jiayj
- * @version 1.0
+ * @version 2.0
  * @date 2024/3/6
  */
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
+
+    private static final int MAX_LOGIN_ATTEMPTS = 5;
+    private static final long LOGIN_LOCK_DURATION = 900000L;
+    private static final String LOGIN_FAIL_PREFIX = "login:fail:user:";
+    private static final String LOGIN_FAIL_IP_PREFIX = "login:fail:ip:";
+    private static final String LOGOUT_MARKER = "0";
 
     @Resource
     private UserMapper userMapper;
@@ -54,11 +63,12 @@ public class UserServiceImpl implements UserService {
      * 用户注册
      * <p>
      * 流程：
-     * 1. 检查用户名是否已存在
-     * 2. 生成唯一用户ID
-     * 3. 对密码进行BCrypt加密
-     * 4. 设置默认角色为普通用户（ptyh）
-     * 5. 写入数据库
+     * 1. 校验用户名、密码、邮箱格式
+     * 2. 检查用户名是否已存在
+     * 3. 生成唯一用户ID
+     * 4. 对密码进行BCrypt加密
+     * 5. 设置默认角色为普通用户（ptyh）
+     * 6. 写入数据库
      * </p>
      *
      * @param user 用户注册信息
@@ -66,7 +76,22 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public Result register(User user) {
-        List<User> existingUsers = userMapper.selectOneByUserName(user.getUserName());
+        String userNameError = ValidateUtil.validateUserName(user.getUserName());
+        if (userNameError != null) {
+            return Result.errorResult(StatusCode.PARAM_VALIDATE_ERROR.getCode(), userNameError);
+        }
+
+        String passwordError = ValidateUtil.validatePassword(user.getPassword());
+        if (passwordError != null) {
+            return Result.errorResult(StatusCode.PARAM_VALIDATE_ERROR.getCode(), passwordError);
+        }
+
+        String emailError = ValidateUtil.validateEmail(user.getEmailAddress());
+        if (emailError != null) {
+            return Result.errorResult(StatusCode.PARAM_VALIDATE_ERROR.getCode(), emailError);
+        }
+
+        List<User> existingUsers = userMapper.selectOneByUserName(user.getUserName().trim());
         if (!existingUsers.isEmpty()) {
             return Result.errorResult(StatusCode.USER_EXISTED.getCode(), StatusCode.USER_EXISTED.getDesc());
         }
@@ -76,7 +101,7 @@ public class UserServiceImpl implements UserService {
 
         User newUser = new User();
         newUser.setUserId(userId);
-        newUser.setUserName(user.getUserName());
+        newUser.setUserName(user.getUserName().trim());
         newUser.setPassword(encryptedPassword);
         newUser.setRoleCode("ptyh");
         newUser.setCreateTime(new Date());
@@ -92,10 +117,12 @@ public class UserServiceImpl implements UserService {
      * 用户登录
      * <p>
      * 流程：
-     * 1. 根据用户名查询用户
-     * 2. 验证密码（BCrypt匹配）
-     * 3. 生成JWT Token并写入Cookie
-     * 4. 将用户信息存入Redis（过期时间与Token一致）
+     * 1. 检查登录频率限制（用户名和IP维度）
+     * 2. 根据用户名查询用户
+     * 3. 验证密码（BCrypt匹配）
+     * 4. 生成JWT Token并写入HttpOnly Cookie
+     * 5. 将token和用户信息存入Redis
+     * 6. 登录成功时清除失败计数
      * </p>
      *
      * @param user     用户登录信息
@@ -104,24 +131,43 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public Result login(User user, HttpServletResponse response) {
+        String clientIp = getClientIp();
+
+        String userFailKey = LOGIN_FAIL_PREFIX + user.getUserName();
+        String ipFailKey = LOGIN_FAIL_IP_PREFIX + clientIp;
+
+        if (isRateLimited(userFailKey) || isRateLimited(ipFailKey)) {
+            return Result.errorResult(StatusCode.LOGIN_RATE_LIMITED.getCode(), StatusCode.LOGIN_RATE_LIMITED.getDesc());
+        }
+
         List<User> users = userMapper.selectOneByUserName(user.getUserName());
         if (users.isEmpty()) {
-            return Result.errorResult(StatusCode.USER_NOT_EXIST.getCode(), StatusCode.USER_NOT_EXIST.getDesc());
+            incrementFailCount(userFailKey);
+            incrementFailCount(ipFailKey);
+            return Result.errorResult(StatusCode.PASSWORD_ERROR.getCode(), "用户名或密码错误");
         }
 
         User dbUser = users.get(0);
         if (!PasswordUtil.checkPassword(user.getPassword(), dbUser.getPassword())) {
-            return Result.errorResult(StatusCode.PASSWORD_ERROR.getCode(), StatusCode.PASSWORD_ERROR.getDesc());
+            incrementFailCount(userFailKey);
+            incrementFailCount(ipFailKey);
+            return Result.errorResult(StatusCode.PASSWORD_ERROR.getCode(), "用户名或密码错误");
         }
+
+        redisTemplate.delete(userFailKey);
+        redisTemplate.delete(ipFailKey);
 
         String token = TokenUtil.getToken(dbUser.getUserId());
 
         Cookie cookie = new Cookie("token", token);
         cookie.setPath("/");
+        cookie.setHttpOnly(true);
         cookie.setMaxAge(-1);
         response.addCookie(cookie);
 
+        redisTemplate.opsForValue().set(token, dbUser.getUserId(), Duration.ofMillis(expireTime));
         redisTemplate.opsForValue().set(dbUser.getUserId(), dbUser, Duration.ofMillis(expireTime));
+
         log.info("用户登录成功, userName: {}", user.getUserName());
         return Result.successfulResult(token);
     }
@@ -131,7 +177,7 @@ public class UserServiceImpl implements UserService {
      * <p>
      * 流程：
      * 1. 从Cookie中获取当前token
-     * 2. 将token标记为失效（存入Redis值为'0'，过期时间与token一致）
+     * 2. 将token标记为失效（Redis中值设为'0'）
      * 3. 删除Redis中的用户信息
      * </p>
      *
@@ -147,7 +193,7 @@ public class UserServiceImpl implements UserService {
 
         String userId = TokenUtil.getUserIdByToken(token);
 
-        redisTemplate.opsForValue().set(token, '0', Duration.ofMillis(expireTime));
+        redisTemplate.opsForValue().set(token, LOGOUT_MARKER, Duration.ofMillis(expireTime));
 
         if (userId != null) {
             redisTemplate.delete(userId);
@@ -165,5 +211,43 @@ public class UserServiceImpl implements UserService {
     @Override
     public Result getAllUser() {
         return Result.successfulResult(userMapper.getAllUser());
+    }
+
+    private boolean isRateLimited(String key) {
+        Object count = redisTemplate.opsForValue().get(key);
+        if (count == null) {
+            return false;
+        }
+        return Integer.parseInt(count.toString()) >= MAX_LOGIN_ATTEMPTS;
+    }
+
+    private void incrementFailCount(String key) {
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, Duration.ofMillis(LOGIN_LOCK_DURATION));
+        }
+    }
+
+    private String getClientIp() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest request = attrs.getRequest();
+                String ip = request.getHeader("X-Forwarded-For");
+                if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                    ip = request.getHeader("X-Real-IP");
+                }
+                if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                    ip = request.getRemoteAddr();
+                }
+                if (ip != null && ip.contains(",")) {
+                    ip = ip.split(",")[0].trim();
+                }
+                return ip;
+            }
+        } catch (Exception e) {
+            log.warn("获取客户端IP失败: {}", e.getMessage());
+        }
+        return "unknown";
     }
 }

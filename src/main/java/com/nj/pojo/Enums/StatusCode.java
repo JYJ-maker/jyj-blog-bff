@@ -31,6 +31,10 @@ public enum StatusCode {
     TOKEN_EXPIRE(401, "token失效,请重新登录"),
     /** 无权限访问 */
     NO_PERMISSION(402, "无权限访问"),
+    /** 参数校验失败 */
+    PARAM_VALIDATE_ERROR(204, "参数校验失败"),
+    /** 登录尝试次数过多 */
+    LOGIN_RATE_LIMITED(205, "登录尝试次数过多，请稍后再试"),
     /** 服务内部异常 */
     ERROR_STATUS(500, "服务异常"),
     /** 缺少必要参数 */

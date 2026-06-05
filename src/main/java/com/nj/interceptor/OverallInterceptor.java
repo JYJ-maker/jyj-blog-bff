@@ -23,7 +23,7 @@ import javax.servlet.http.HttpServletResponse;
  * </p>
  *
  * @author jiayj
- * @version 1.0
+ * @version 2.0
  * @date 2024/5/29
  */
 @Slf4j
@@ -52,7 +52,12 @@ public class OverallInterceptor implements HandlerInterceptor {
             throw new CustomException(StatusCode.TOKEN_EXPIRE.getCode(), StatusCode.TOKEN_EXPIRE.getDesc());
         }
 
-        if (Boolean.FALSE.equals(redisTemplate.hasKey(token))) {
+        Object tokenValue = redisTemplate.opsForValue().get(token);
+        if (tokenValue == null) {
+            throw new CustomException(StatusCode.TOKEN_EXPIRE.getCode(), StatusCode.TOKEN_EXPIRE.getDesc());
+        }
+
+        if ("0".equals(tokenValue.toString())) {
             throw new CustomException(StatusCode.TOKEN_EXPIRE.getCode(), StatusCode.TOKEN_EXPIRE.getDesc());
         }
 
