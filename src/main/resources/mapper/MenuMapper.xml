@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nj.mapper.MenuMapper">
+    <resultMap id="menuTreeRes" type="com.nj.pojo.Menu">
+        <id column="menu_id" property="menuId"></id>
+        <result column="menu_name" property="menuName"></result>
+        <result column="menu_router_address" property="menuRouterAddress"></result>
+        <result column="menu_icon" property="menuIcon"></result>
+        <result column="menu_level" property="menuLevel"></result>
+        <result column="parent_id" property="parentId"></result>
+        <result column="can_delete" property="canDelete"></result>
+        <collection property="children" ofType="com.nj.pojo.Menu" javaType="list" column="menu_id" select="getMenuChildrenById"></collection>
+    </resultMap>
+    <sql id="base_sql">menu_id,menu_name,menu_router_address,menu_icon,menu_level,parent_id,can_delete</sql>
+    <select id="getMenuList" resultMap="menuTreeRes">
+        select
+            <include refid="base_sql"></include>
+        FROM menu
+        WHERE menu_level = "0"
+    </select>
+    <select id="getMenuChildrenById" resultMap="menuTreeRes" parameterType="map">
+        select
+        <include refid="base_sql"></include>
+        FROM menu
+        WHERE parent_id=#{menuId}
+    </select>
+    <insert id="addMenu" parameterType="com.nj.pojo.Menu">
+        INSERT INTO menu(<include refid="base_sql"></include>)
+            VALUE (#{menuId},#{menuName},#{menuRouterAddress},#{menuIcon},#{menuLevel},#{parentId},1)
+    </insert>
+    <delete id="delMenu" parameterType="list">
+        DELETE FROM menu WHERE menu_id in
+        <foreach collection="list" item="it" open="(" close=")" separator=",">
+            #{it}
+        </foreach>
+    </delete>
+    <update id="updateMenu" parameterType="com.nj.pojo.Menu">
+        UPDATE menu SET menu_name=#{menuName},menu_router_address=#{menuRouterAddress},menu_icon=#{menuIcon} WHERE menu_id=#{menuId}
+    </update>
+</mapper>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nj.mapper.FileMapper">
+    <insert id="addFile" parameterType="com.nj.pojo.File">
+        INSERT INTO file(
+            file_id,group_name,file_name,file_path,uploader_id,uploader_name,upload_time
+        ) VALUE (#{fileId},#{groupName},#{fileName},#{filePath},#{uploaderId},#{uploaderName},#{uploadTime})
+    </insert>
+
+    <select id="getFile" parameterType="string" resultType="com.nj.pojo.File">
+        select
+            file_id,group_name,file_name,file_path,uploader_id,uploader_name,upload_time
+        FROM file
+        WHERE file_id=#{fileId}
+    </select>
+
+    <select id="getFileList" resultType="com.nj.pojo.File">
+        select
+            file_id,group_name,file_name,uploader_id,uploader_name,upload_time
+        FROM file
+        ORDER BY upload_time DESC
+    </select>
+
+    <delete id="delFile" parameterType="string">
+        DELETE FROM file WHERE file_id=#{fileId}
+    </delete>
+</mapper>
