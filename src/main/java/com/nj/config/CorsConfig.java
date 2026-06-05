@@ -7,23 +7,27 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
 /**
- * @Describe:
- * @Version: 1.0
- * @Author: jiayj
- * @Email: jiayongjie1217@163.com
- * @Date: 2024/6/20 18:48
- **/
+ * 跨域配置类
+ * <p>
+ * 当前跨域配置处于关闭状态（核心配置已注释），
+ * 如需启用跨域支持，取消注释 buildConfig() 和 corsFilter() 中的配置代码。
+ * </p>
+ *
+ * @author jiayj
+ * @version 1.0
+ * @date 2024/6/20
+ */
 @Configuration
 public class CorsConfig {
-    // 当前跨域请求最大有效时长。这里默认1天
+
     private static final long MAX_AGE = 24 * 60 * 60;
 
     private CorsConfiguration buildConfig() {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-//        corsConfiguration.setAllowCredentials(true); //允许接受cookie
-//        corsConfiguration.addAllowedOriginPattern("*"); // 1 设置访问源地址
-//        corsConfiguration.addAllowedHeader("*"); // 2 设置访问源请求头
-//        corsConfiguration.addAllowedMethod("*"); // 3 设置访问源请求方法
+//        corsConfiguration.setAllowCredentials(true);
+//        corsConfiguration.addAllowedOriginPattern("*");
+//        corsConfiguration.addAllowedHeader("*");
+//        corsConfiguration.addAllowedMethod("*");
 //        corsConfiguration.setMaxAge(MAX_AGE);
         return corsConfiguration;
     }
@@ -31,7 +35,7 @@ public class CorsConfig {
     @Bean
     public CorsFilter corsFilter() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-//        source.registerCorsConfiguration("/**", buildConfig()); // 4 对接口配置跨域设置
+//        source.registerCorsConfiguration("/**", buildConfig());
         return new CorsFilter(source);
     }
 }
