@@ -10,38 +10,52 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 
 /**
- * @Describe: 权限注解切面类
- * @Version: 1.0
- * @Author: jiayj
- * @Email: jiayongjie1217@163.com
- * @Date: 2024/5/30 15:24
- **/
+ * 权限校验切面类
+ * <p>
+ * 拦截标注了 {@link Authority} 注解的方法，
+ * 在方法执行前校验当前用户是否具备所需权限。
+ * </p>
+ * <p>
+ * TODO: 当前用户权限值为硬编码（"bz"），后续应从Redis/Token中动态获取用户角色权限。
+ * </p>
+ *
+ * @author jiayj
+ * @version 1.0
+ * @date 2024/5/30
+ */
 @Aspect
 @Component
 public class AuthorityAspect {
 
+    /**
+     * 权限校验前置通知
+     * <p>
+     * 在标注了@Authority注解的方法执行前，比较用户权限与接口所需权限。
+     * </p>
+     *
+     * @param joinPoint 连接点
+     */
     @Before("@annotation(com.nj.annotations.Authority)")
-    public void checkAuthority(JoinPoint joinPoint){
-        //1.获取用户权限信息
-        String auth = "bz";
-        //2.获取注解类
-        MethodSignature signature = (MethodSignature)joinPoint.getSignature();
+    public void checkAuthority(JoinPoint joinPoint) {
+        // TODO: 应从当前登录用户的Session/Token中获取实际权限，当前为硬编码占位
+        String userAuthority = "bz";
+
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Authority annotation = signature.getMethod().getAnnotation(Authority.class);
-        //3.验证用户权限是否可以访问接口
-        if (!checkUserAuthority(auth, annotation.value())){
-            //无权限访问
+
+        if (!checkUserAuthority(userAuthority, annotation.value())) {
             throw new CustomException(StatusCode.NO_PERMISSION.getCode(), StatusCode.NO_PERMISSION.getDesc());
         }
     }
 
     /**
-     * @param userAuthority 用户拥有的权限
-     * @param requireAuthority 接口所需要的权限
-     * @return 验证结果
+     * 校验用户权限是否满足接口要求
+     *
+     * @param userAuthority    用户拥有的权限标识
+     * @param requireAuthority 接口所需的权限标识
+     * @return true-有权限，false-无权限
      */
-    private boolean checkUserAuthority(String userAuthority,String requireAuthority){
+    private boolean checkUserAuthority(String userAuthority, String requireAuthority) {
         return requireAuthority.contains(userAuthority);
     }
-
-
 }
